@@ -59,7 +59,7 @@ export default function App() {
       if (loading && bridge.isConnected()) {
         setLoading(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[App] Error loading connections:', err);
       // Don't show error if extension is being reloaded
       if (!err.message?.includes('Extension context invalidated')) {

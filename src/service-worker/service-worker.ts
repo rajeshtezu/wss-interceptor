@@ -33,9 +33,10 @@ chrome.runtime.onConnect.addListener((port) => {
 
     console.log('[Service Worker] DevTools connected for tab:', tabId);
 
-    port.onMessage.addListener(async (message: DevToolsMessage) => {
+    port.onMessage.addListener(async (message: any) => {
       const response = await handleDevToolsMessage(message);
-      port.postMessage(response);
+      // Include the message id in the response so the bridge can match it
+      port.postMessage({ ...response, id: message.id });
     });
 
     port.onDisconnect.addListener(() => {

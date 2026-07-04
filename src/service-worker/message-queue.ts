@@ -56,6 +56,14 @@ export class MessageQueue {
     }
   }
 
+  removeByConnection(connectionId: string): void {
+    const messageIds = this.byConnection.get(connectionId);
+    if (messageIds) {
+      messageIds.forEach(id => this.queue.delete(id));
+      this.byConnection.delete(connectionId);
+    }
+  }
+
   clear(): void {
     this.queue.clear();
     this.byConnection.clear();

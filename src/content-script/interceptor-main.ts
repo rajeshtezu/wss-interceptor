@@ -57,6 +57,15 @@ window.WebSocket = function(url: string | URL, protocols?: string | string[]) {
         (ws as any)._originalHandler = handler;
 
         descriptor.set!.call(ws, function(event: MessageEvent) {
+          // Messages we injected ourselves are delivered straight to the page
+          // handler; they must not be re-intercepted or held since they didn't
+          // originate from the server.
+          if ((event as any)._wssInjected) {
+            const currentHandler = (ws as any)._originalHandler;
+            if (currentHandler) currentHandler.call(ws, event);
+            return;
+          }
+
           const messageId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
           console.log('[WS Interceptor] Incoming message:', messageId);
@@ -132,8 +141,10 @@ window.addEventListener('message', (event) => {
 
     const pending = ws._pendingOutgoing.get(data.messageId);
     if (pending) {
-      console.log('[WS Interceptor] Approving outgoing:', data.messageId);
-      pending.originalSend(pending.data);
+      // Send the edited payload if one was provided, otherwise the original.
+      const payload = data.data !== undefined ? data.data : pending.data;
+      console.log('[WS Interceptor] Approving outgoing:', data.messageId, data.data !== undefined ? '(modified)' : '');
+      pending.originalSend(payload);
       ws._pendingOutgoing.delete(data.messageId);
     }
   }
@@ -144,13 +155,95 @@ window.addEventListener('message', (event) => {
 
     const pending = ws._pendingIncoming.get(data.messageId);
     if (pending) {
-      console.log('[WS Interceptor] Approving incoming:', data.messageId);
+      console.log('[WS Interceptor] Approving incoming:', data.messageId, data.data !== undefined ? '(modified)' : '');
+      // Deliver a fresh event carrying the edited payload when modified;
+      // deliver directly to the handler to match how it was originally held.
+      const eventToDeliver = data.data !== undefined
+        ? makeIncomingEvent(ws, data.data)
+        : pending.event;
       if (pending.handler) {
-        pending.handler.call(ws, pending.event);
+        pending.handler.call(ws, eventToDeliver);
       }
       ws._pendingIncoming.delete(data.messageId);
     }
   }
+
+  if (data.type === 'WS_INJECT_MESSAGE') {
+    const ws = connections.get(data.connectionId);
+    if (!ws) return;
+
+    console.log('[WS Interceptor] Injecting message toward client:', data.connectionId);
+    // Dispatch a real event so both `onmessage` and `addEventListener('message')`
+    // consumers receive it, exactly as they would for a genuine server message.
+    ws.dispatchEvent(makeIncomingEvent(ws, data.data));
+  }
+
+  if (data.type === 'WS_CLOSE_CONNECTION') {
+    const ws = connections.get(data.connectionId);
+    if (!ws) return;
+
+    closeConnection(ws, data.connectionId, data.code, data.reason);
+  }
 });
+
+/**
+ * Build a MessageEvent that looks like it came from the server for a given
+ * socket. The `_wssInjected` marker tells our onmessage interceptor to pass it
+ * straight through instead of holding it again.
+ */
+function makeIncomingEvent(ws: any, data: any): MessageEvent {
+  let origin = '';
+  try {
+    origin = new URL(ws.url).origin;
+  } catch {
+    // ws.url may be unavailable/relative; origin can stay empty.
+  }
+
+  const event = new MessageEvent('message', { data, origin });
+  (event as any)._wssInjected = true;
+  return event;
+}
+
+/**
+ * Close a WebSocket with an optional custom close code and reason.
+ *
+ * The WebSocket API only accepts 1000 or codes in the 3000-4999 range and a
+ * reason of at most 123 UTF-8 bytes; anything else makes close() throw. We
+ * validate up front and fall back to a bare close() so a bad custom code never
+ * leaves the socket open.
+ */
+function closeConnection(ws: any, connectionId: string, code?: number, reason?: string) {
+  const hasCustomCode = typeof code === 'number';
+  const isValidCode = hasCustomCode && (code === 1000 || (code >= 3000 && code <= 4999));
+  const isValidReason =
+    reason === undefined || reason === '' || new Blob([reason]).size <= 123;
+
+  console.log('[WS Interceptor] Closing connection:', connectionId, 'code:', code, 'reason:', reason);
+
+  try {
+    if (hasCustomCode && isValidCode && isValidReason) {
+      ws.close(code, reason);
+    } else if (hasCustomCode && isValidCode) {
+      ws.close(code);
+    } else {
+      if (hasCustomCode && !isValidCode) {
+        console.warn(
+          '[WS Interceptor] Invalid close code',
+          code,
+          '- must be 1000 or 3000-4999. Closing without a custom code.'
+        );
+      }
+      ws.close();
+    }
+  } catch (err) {
+    console.error('[WS Interceptor] Failed to close connection:', connectionId, err);
+    window.postMessage({
+      type: 'WS_ERROR',
+      connectionId,
+      error: `Failed to close connection: ${(err as Error)?.message ?? String(err)}`,
+      timestamp: Date.now()
+    }, '*');
+  }
+}
 
 console.log('[WS Interceptor] Initialized successfully in MAIN world');

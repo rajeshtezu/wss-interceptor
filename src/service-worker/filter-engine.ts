@@ -26,6 +26,12 @@ export class FilterEngine {
     return this.filters.get(connectionId) || [];
   }
 
+  async removeFilters(connectionId: string): Promise<void> {
+    this.filters.delete(connectionId);
+    await chrome.storage.local.remove(`filters_${connectionId}`);
+    console.log('[FilterEngine] Removed filters for', connectionId);
+  }
+
   async shouldHoldMessage(
     connectionId: string,
     direction: 'incoming' | 'outgoing',

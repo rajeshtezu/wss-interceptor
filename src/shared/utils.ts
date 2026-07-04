@@ -97,3 +97,19 @@ export function formatJSON(data: any, indent: number = 2): string {
     return String(data);
   }
 }
+
+/**
+ * Pretty-print message payloads for display.
+ *
+ * WebSocket data usually arrives as a JSON *string*, so `JSON.stringify` on it
+ * just re-escapes the string. Parse JSON strings first so objects/arrays render
+ * indented; non-JSON strings are shown verbatim and other values fall back to
+ * plain JSON formatting.
+ */
+export function prettyPrint(data: any, indent: number = 2): string {
+  const parsed = tryParseJSON(data);
+  if (parsed !== null && typeof parsed === 'object') {
+    return formatJSON(parsed, indent);
+  }
+  return typeof data === 'string' ? data : formatJSON(data, indent);
+}

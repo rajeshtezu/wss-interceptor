@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Message } from '../../shared/types';
-import { formatTime, formatBytes, truncate, formatJSON } from '../../shared/utils';
+import { formatTime, formatBytes, truncate, prettyPrint } from '../../shared/utils';
 
 interface MessageTableProps {
   messages: Message[];
@@ -10,6 +10,37 @@ interface MessageTableProps {
 
 export function MessageTable({ messages, selectedMessage, onSelectMessage }: MessageTableProps) {
   const [detailsTab, setDetailsTab] = useState<'preview' | 'raw'>('preview');
+  const [detailsHeight, setDetailsHeight] = useState(250);
+  const [isResizing, setIsResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  function startResize(e: React.MouseEvent) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = detailsHeight;
+    setIsResizing(true);
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMove = (ev: MouseEvent) => {
+      // Dragging the handle upward should make the details pane taller.
+      const containerHeight = containerRef.current?.clientHeight ?? window.innerHeight;
+      const max = Math.max(150, containerHeight - 120);
+      const newHeight = Math.min(Math.max(startHeight + (startY - ev.clientY), 100), max);
+      setDetailsHeight(newHeight);
+    };
+
+    const stopResize = () => {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', stopResize);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', stopResize);
+  }
 
   if (messages.length === 0) {
     return (
@@ -20,7 +51,7 @@ export function MessageTable({ messages, selectedMessage, onSelectMessage }: Mes
   }
 
   return (
-    <div className="message-table-container">
+    <div className="message-table-container" ref={containerRef}>
       <div className="message-table">
         <div className="message-table-header">
           <div className="col-direction">Dir</div>
@@ -56,7 +87,15 @@ export function MessageTable({ messages, selectedMessage, onSelectMessage }: Mes
       </div>
 
       {selectedMessage && (
-        <div className="message-details">
+        <>
+          <div
+            className={`details-resizer ${isResizing ? 'resizing' : ''}`}
+            onMouseDown={startResize}
+            role="separator"
+            aria-orientation="horizontal"
+            title="Drag to resize"
+          />
+          <div className="message-details" style={{ height: detailsHeight }}>
           <div className="message-details-header">
             <h4>Message Details</h4>
             <div className="message-details-tabs">
@@ -77,12 +116,13 @@ export function MessageTable({ messages, selectedMessage, onSelectMessage }: Mes
 
           <div className="message-details-content">
             {detailsTab === 'preview' ? (
-              <pre className="message-json">{formatJSON(selectedMessage.data)}</pre>
+              <pre className="message-json">{prettyPrint(selectedMessage.data)}</pre>
             ) : (
               <pre className="message-raw">{String(selectedMessage.data)}</pre>
             )}
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

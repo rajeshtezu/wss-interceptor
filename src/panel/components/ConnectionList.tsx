@@ -4,9 +4,10 @@ interface ConnectionListProps {
   connections: Connection[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onRemove: (id: string) => void;
 }
 
-export function ConnectionList({ connections, selectedId, onSelect }: ConnectionListProps) {
+export function ConnectionList({ connections, selectedId, onSelect, onRemove }: ConnectionListProps) {
   if (connections.length === 0) {
     return (
       <div className="connection-list-empty">
@@ -33,6 +34,17 @@ export function ConnectionList({ connections, selectedId, onSelect }: Connection
           {connection.messageCount > 0 && (
             <div className="connection-badge">{connection.messageCount}</div>
           )}
+          <button
+            className="connection-remove"
+            title="Remove connection from list"
+            aria-label="Remove connection"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(connection.id);
+            }}
+          >
+            ×
+          </button>
         </div>
       ))}
     </div>

@@ -50,6 +50,23 @@ export interface WSApproval {
   connectionId: string;
   messageId: string;
   direction: 'incoming' | 'outgoing';
+  // When present, deliver/send this payload instead of the original one.
+  data?: any;
+}
+
+// Inject a fabricated message toward the page (simulate server → client)
+export interface WSInject {
+  type: 'WS_INJECT_MESSAGE';
+  connectionId: string;
+  data: any;
+}
+
+// Close command (service worker → content script → page context)
+export interface WSCloseCommand {
+  type: 'WS_CLOSE_CONNECTION';
+  connectionId: string;
+  code?: number;
+  reason?: string;
 }
 
 // DevTools panel ↔ service worker messages
@@ -57,10 +74,13 @@ export type DevToolsMessage =
   | { type: 'GET_CONNECTIONS'; tabId: number }
   | { type: 'GET_MESSAGES'; connectionId: string }
   | { type: 'GET_HELD_MESSAGES'; connectionId: string }
-  | { type: 'APPROVE_MESSAGE'; messageId: string; connectionId: string }
+  | { type: 'APPROVE_MESSAGE'; messageId: string; connectionId: string; data?: any }
   | { type: 'BLOCK_MESSAGE'; messageId: string; connectionId: string }
+  | { type: 'INJECT_MESSAGE'; connectionId: string; data: any }
   | { type: 'UPDATE_FILTERS'; connectionId: string; filters: JsonPropertyFilter[] }
-  | { type: 'GET_FILTERS'; connectionId: string };
+  | { type: 'GET_FILTERS'; connectionId: string }
+  | { type: 'CLOSE_CONNECTION'; connectionId: string; code?: number; reason?: string }
+  | { type: 'REMOVE_CONNECTION'; connectionId: string };
 
 export type DevToolsResponse =
   | { type: 'CONNECTIONS'; connections: Connection[] }

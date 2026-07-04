@@ -2,7 +2,7 @@ import { ConnectionManager } from './connection-manager';
 import { FilterEngine } from './filter-engine';
 import { MessageQueue } from './message-queue';
 import type { Connection, Message, DevToolsMessage } from '../shared/types';
-import { getDataSize } from '../shared/utils';
+import { getDataSize, generateId } from '../shared/utils';
 
 console.log('[Service Worker] Initializing...');
 
@@ -131,12 +131,16 @@ async function approveMessage(
   connectionId: string,
   messageId: string,
   direction: 'incoming' | 'outgoing',
-  tabId: number
+  tabId: number,
+  data?: any
 ) {
-  console.log('[Service Worker] Approving message:', messageId);
+  console.log('[Service Worker] Approving message:', messageId, data !== undefined ? '(modified)' : '');
 
-  // Update status
+  // Update status, and persist any edited payload so the table reflects it.
   connections.updateMessageStatus(connectionId, messageId, 'passed');
+  if (data !== undefined) {
+    connections.updateMessageData(connectionId, messageId, data);
+  }
 
   // Send approval to content script
   try {
@@ -144,7 +148,8 @@ async function approveMessage(
       type: 'WS_APPROVE_MESSAGE',
       connectionId,
       messageId,
-      direction
+      direction,
+      data
     });
   } catch (err) {
     console.error('[Service Worker] Error sending approval:', err);
@@ -152,6 +157,33 @@ async function approveMessage(
 
   // Remove from queue
   messageQueue.approve(messageId);
+}
+
+async function injectMessage(connectionId: string, tabId: number, data: any) {
+  console.log('[Service Worker] Injecting message toward client:', connectionId);
+
+  // Record the fabricated message so it shows in the panel like a real one.
+  const message: Message = {
+    id: generateId(),
+    connectionId,
+    direction: 'incoming',
+    data,
+    timestamp: Date.now(),
+    status: 'passed',
+    size: getDataSize(data)
+  };
+  connections.addMessage(connectionId, message);
+  notifyDevTools(tabId, { type: 'MESSAGE_ADDED', connectionId });
+
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'WS_INJECT_MESSAGE',
+      connectionId,
+      data
+    });
+  } catch (err) {
+    console.error('[Service Worker] Error injecting message:', err);
+  }
 }
 
 async function blockMessage(
@@ -165,6 +197,31 @@ async function blockMessage(
 
   // Remove from queue (don't send approval)
   messageQueue.block(messageId);
+}
+
+async function closeConnection(
+  connectionId: string,
+  tabId: number,
+  code?: number,
+  reason?: string
+) {
+  console.log('[Service Worker] Closing connection:', connectionId, 'code:', code, 'reason:', reason);
+
+  // Reflect the pending close in the UI immediately; the real 'closed'
+  // status arrives via the WS_CLOSED event once the socket finishes closing.
+  connections.updateStatus(connectionId, 'closing');
+  notifyDevTools(tabId, { type: 'CONNECTION_UPDATED', connectionId });
+
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'WS_CLOSE_CONNECTION',
+      connectionId,
+      code,
+      reason
+    });
+  } catch (err) {
+    console.error('[Service Worker] Error sending close command:', err);
+  }
 }
 
 async function handleDevToolsMessage(message: DevToolsMessage): Promise<any> {
@@ -195,7 +252,8 @@ async function handleDevToolsMessage(message: DevToolsMessage): Promise<any> {
             message.connectionId,
             message.messageId,
             msg.direction,
-            conn.tabId
+            conn.tabId,
+            message.data
           );
         }
       }
@@ -207,6 +265,15 @@ async function handleDevToolsMessage(message: DevToolsMessage): Promise<any> {
       return { type: 'SUCCESS', success: true };
     }
 
+    case 'INJECT_MESSAGE': {
+      const conn = connections.get(message.connectionId);
+      if (!conn) {
+        return { type: 'ERROR', error: 'Connection not found' };
+      }
+      await injectMessage(message.connectionId, conn.tabId, message.data);
+      return { type: 'SUCCESS', success: true };
+    }
+
     case 'UPDATE_FILTERS': {
       await filterEngine.updateFilters(message.connectionId, message.filters);
       return { type: 'SUCCESS', success: true };
@@ -215,6 +282,29 @@ async function handleDevToolsMessage(message: DevToolsMessage): Promise<any> {
     case 'GET_FILTERS': {
       const filters = filterEngine.getFilters(message.connectionId);
       return { type: 'FILTERS', filters };
+    }
+
+    case 'CLOSE_CONNECTION': {
+      const conn = connections.get(message.connectionId);
+      if (!conn) {
+        return { type: 'ERROR', error: 'Connection not found' };
+      }
+      await closeConnection(message.connectionId, conn.tabId, message.code, message.reason);
+      return { type: 'SUCCESS', success: true };
+    }
+
+    case 'REMOVE_CONNECTION': {
+      const conn = connections.get(message.connectionId);
+      const tabId = conn?.tabId;
+
+      connections.remove(message.connectionId);
+      messageQueue.removeByConnection(message.connectionId);
+      await filterEngine.removeFilters(message.connectionId);
+
+      if (tabId !== undefined) {
+        notifyDevTools(tabId, { type: 'CONNECTION_REMOVED', connectionId: message.connectionId });
+      }
+      return { type: 'SUCCESS', success: true };
     }
 
     default:

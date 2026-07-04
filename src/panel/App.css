@@ -27,13 +27,53 @@ body {
   color: #666;
 }
 
+.context-invalidated {
+  text-align: center;
+  color: #666;
+  max-width: 320px;
+}
+
+.context-invalidated h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.context-invalidated p {
+  font-size: 13px;
+}
+
+.context-invalidated .empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
 /* Sidebar */
 .sidebar {
   width: 300px;
+  flex-shrink: 0;
   border-right: 1px solid #e0e0e0;
   display: flex;
   flex-direction: column;
   background: #f5f5f5;
+  overflow: hidden;
+}
+
+/* Sidebar resize handle */
+.sidebar-resizer {
+  flex-shrink: 0;
+  width: 5px;
+  margin-left: -3px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 1;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.resizing {
+  background: #1a73e8;
 }
 
 .sidebar-header {
@@ -72,7 +112,8 @@ body {
 }
 
 .connection-item {
-  padding: 12px 16px;
+  position: relative;
+  padding: 8px 26px 8px 12px;
   border-bottom: 1px solid #e0e0e0;
   cursor: pointer;
   background: #fff;
@@ -86,14 +127,14 @@ body {
 .connection-item.selected {
   background: #e8f0fe;
   border-left: 3px solid #1a73e8;
-  padding-left: 13px;
+  padding-left: 9px;
 }
 
 .connection-status {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
   font-size: 11px;
 }
 
@@ -126,7 +167,7 @@ body {
   font-size: 12px;
   color: #333;
   word-break: break-all;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .connection-badge {
@@ -137,6 +178,36 @@ body {
   border-radius: 10px;
   font-size: 10px;
   font-weight: 500;
+}
+
+.connection-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #999;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.connection-item:hover .connection-remove,
+.connection-item.selected .connection-remove {
+  opacity: 1;
+}
+
+.connection-remove:hover {
+  background: #fce8e6;
+  color: #ea4335;
 }
 
 /* Main Content */
@@ -184,7 +255,7 @@ body {
 }
 
 .message-panel-header {
-  padding: 12px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid #e0e0e0;
   display: flex;
   align-items: center;
@@ -198,12 +269,12 @@ body {
 }
 
 .filter-toggle {
-  padding: 6px 12px;
+  padding: 4px 8px;
   border: 1px solid #d0d0d0;
   border-radius: 4px;
   background: #fff;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   transition: all 0.15s;
 }
 
@@ -215,6 +286,164 @@ body {
   background: #e8f0fe;
   border-color: #1a73e8;
   color: #1a73e8;
+}
+
+.message-panel-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.filter-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.close-toggle.active {
+  background: #fce8e6;
+  border-color: #ea4335;
+  color: #ea4335;
+}
+
+/* Close Connection */
+.close-connection {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f9f9f9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.close-connection-fields {
+  display: flex;
+  gap: 12px;
+}
+
+.close-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.close-field-reason {
+  flex: 1;
+}
+
+.close-field label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #666;
+}
+
+.close-field input {
+  padding: 6px 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.close-field input:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.close-hint {
+  font-size: 11px;
+  color: #888;
+}
+
+.close-error {
+  font-size: 12px;
+  color: #ea4335;
+}
+
+.close-connection-footer {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.compose-toggle.active {
+  background: #e6f4ea;
+  border-color: #34a853;
+  color: #1e7e34;
+}
+
+/* Compose / send-to-client */
+.compose-message {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f9f9f9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compose-message > label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #666;
+}
+
+.compose-editor {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.compose-editor:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.compose-status {
+  font-size: 12px;
+  color: #666;
+}
+
+.compose-footer {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Editable held message payload */
+.held-message-edit-toggle {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.held-message-edit-toggle:hover {
+  background: #f0f0f0;
+}
+
+.held-message-editor {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.held-message-editor:focus {
+  outline: none;
+  border-color: #1a73e8;
 }
 
 /* Filter Config */
@@ -243,13 +472,13 @@ body {
 .btn-close {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 20px;
   cursor: pointer;
   color: #666;
   line-height: 1;
   padding: 0;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
 }
 
 .btn-close:hover {
@@ -308,8 +537,8 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 16px;
-  padding: 4px;
+  font-size: 14px;
+  padding: 2px;
 }
 
 .btn-remove:hover {
@@ -349,13 +578,13 @@ body {
 }
 
 .btn-add {
-  padding: 8px 16px;
+  padding: 5px 10px;
   border: 1px solid #1a73e8;
   border-radius: 4px;
   background: #fff;
   color: #1a73e8;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   transition: all 0.15s;
 }
@@ -365,19 +594,19 @@ body {
 }
 
 .filter-config-footer {
-  padding: 12px 16px;
+  padding: 8px 12px;
   border-top: 1px solid #e0e0e0;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
   background: #fff;
 }
 
 .btn-cancel,
 .btn-save {
-  padding: 8px 16px;
+  padding: 5px 10px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -413,6 +642,7 @@ body {
 
 .message-table {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -539,13 +769,31 @@ body {
 .message-details {
   border-top: 1px solid #e0e0e0;
   background: #fff;
-  max-height: 40%;
+  flex-shrink: 0;
+  min-height: 100px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+/* Message details resize handle */
+.details-resizer {
+  flex-shrink: 0;
+  height: 5px;
+  margin-bottom: -3px;
+  cursor: row-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 1;
+}
+
+.details-resizer:hover,
+.details-resizer.resizing {
+  background: #1a73e8;
 }
 
 .message-details-header {
-  padding: 12px 16px;
+  padding: 6px 12px;
   border-bottom: 1px solid #e0e0e0;
   display: flex;
   align-items: center;
@@ -553,7 +801,7 @@ body {
 }
 
 .message-details-header h4 {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -563,12 +811,12 @@ body {
 }
 
 .message-details-tabs button {
-  padding: 6px 12px;
+  padding: 3px 8px;
   border: 1px solid #d0d0d0;
   border-radius: 3px;
   background: #fff;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   transition: all 0.15s;
 }
 
@@ -709,18 +957,18 @@ body {
 }
 
 .held-message-actions {
-  padding: 12px;
+  padding: 8px;
   border-top: 1px solid #f0e6c0;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
 }
 
 .btn-block,
 .btn-approve {
-  padding: 8px 16px;
+  padding: 5px 10px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -747,18 +995,18 @@ body {
 }
 
 .modal-footer {
-  padding: 16px 20px;
+  padding: 10px 14px;
   border-top: 1px solid #e0e0e0;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
 }
 
 .btn-secondary,
 .btn-primary {
-  padding: 10px 20px;
+  padding: 6px 12px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;

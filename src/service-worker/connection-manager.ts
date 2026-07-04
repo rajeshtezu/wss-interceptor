@@ -1,4 +1,5 @@
 import type { Connection, Message } from '../shared/types';
+import { getDataSize } from '../shared/utils';
 
 /**
  * Manages WebSocket connections and their messages
@@ -71,6 +72,14 @@ export class ConnectionManager {
     const message = this.getMessage(connectionId, messageId);
     if (message) {
       message.status = status;
+    }
+  }
+
+  updateMessageData(connectionId: string, messageId: string, data: any): void {
+    const message = this.getMessage(connectionId, messageId);
+    if (message) {
+      message.data = data;
+      message.size = getDataSize(data);
     }
   }
 

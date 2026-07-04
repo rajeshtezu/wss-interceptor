@@ -11,13 +11,33 @@ class DevToolsBridge {
   private listeners = new Set<(notification: any) => void>();
   private disconnected = false;
   private reconnectTimeout: number | null = null;
+  // Set once the extension has been reloaded/updated/disabled. Unlike a normal
+  // MV3 service-worker suspension, this can't be recovered by reconnecting —
+  // the DevTools panel has to be reopened — so we stop retrying.
+  private contextInvalidated = false;
 
   constructor() {
     this.tabId = chrome.devtools.inspectedWindow.tabId;
     this.connect();
   }
 
+  private isContextValid(): boolean {
+    if (this.contextInvalidated) return false;
+    try {
+      return Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  }
+
   private connect() {
+    if (!this.isContextValid()) {
+      this.contextInvalidated = true;
+      this.disconnected = true;
+      this.port = null;
+      return;
+    }
+
     try {
       this.port = chrome.runtime.connect({ name: `devtools_${this.tabId}` });
       this.disconnected = false;
@@ -49,7 +69,12 @@ class DevToolsBridge {
         });
         this.pendingRequests.clear();
 
-        // Attempt to reconnect after a delay
+        // Only reconnect if the extension context is still alive (e.g. the
+        // service worker was suspended). If it was invalidated, stop retrying.
+        if (!this.isContextValid()) {
+          this.contextInvalidated = true;
+          return;
+        }
         if (!this.reconnectTimeout) {
           this.reconnectTimeout = window.setTimeout(() => {
             this.reconnectTimeout = null;
@@ -59,9 +84,13 @@ class DevToolsBridge {
         }
       });
     } catch (err) {
-      console.error('[DevTools Bridge] Failed to connect:', err);
       this.disconnected = true;
       this.port = null;
+      if (this.isContextValid()) {
+        console.error('[DevTools Bridge] Failed to connect:', err);
+      } else {
+        this.contextInvalidated = true;
+      }
     }
   }
 
@@ -123,11 +152,20 @@ class DevToolsBridge {
     }
   }
 
-  async approveMessage(connectionId: string, messageId: string): Promise<void> {
+  async approveMessage(connectionId: string, messageId: string, data?: any): Promise<void> {
     try {
-      await this.sendMessage({ type: 'APPROVE_MESSAGE', connectionId, messageId });
+      await this.sendMessage({ type: 'APPROVE_MESSAGE', connectionId, messageId, data });
     } catch (err) {
       console.error('[DevTools Bridge] Error approving message:', err);
+      throw err;
+    }
+  }
+
+  async injectMessage(connectionId: string, data: any): Promise<void> {
+    try {
+      await this.sendMessage({ type: 'INJECT_MESSAGE', connectionId, data });
+    } catch (err) {
+      console.error('[DevTools Bridge] Error injecting message:', err);
       throw err;
     }
   }
@@ -146,6 +184,24 @@ class DevToolsBridge {
       await this.sendMessage({ type: 'UPDATE_FILTERS', connectionId, filters });
     } catch (err) {
       console.error('[DevTools Bridge] Error updating filters:', err);
+      throw err;
+    }
+  }
+
+  async closeConnection(connectionId: string, code?: number, reason?: string): Promise<void> {
+    try {
+      await this.sendMessage({ type: 'CLOSE_CONNECTION', connectionId, code, reason });
+    } catch (err) {
+      console.error('[DevTools Bridge] Error closing connection:', err);
+      throw err;
+    }
+  }
+
+  async removeConnection(connectionId: string): Promise<void> {
+    try {
+      await this.sendMessage({ type: 'REMOVE_CONNECTION', connectionId });
+    } catch (err) {
+      console.error('[DevTools Bridge] Error removing connection:', err);
       throw err;
     }
   }
@@ -173,6 +229,10 @@ class DevToolsBridge {
 
   isConnected(): boolean {
     return !this.disconnected && this.port !== null;
+  }
+
+  isContextInvalidated(): boolean {
+    return this.contextInvalidated;
   }
 }
 
